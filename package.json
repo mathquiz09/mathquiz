@@ -1,0 +1,13 @@
+{
+  "name": "math-battle",
+  "version": "1.0.0",
+  "description": "실시간 온라인 수학 대결 게임",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}
