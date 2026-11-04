@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>수학 대결</title>
+<style>
+  :root {
+    --bg: #f5f6fa; --card: #ffffff; --text: #1f2430; --muted: #6b7280;
+    --primary: #4f6ef7; --primary-dark: #3a56d4; --ok: #16a34a; --bad: #dc2626; --border: #e5e7eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161c; --card: #1e212a; --text: #e8eaf0; --muted: #9aa1b2;
+      --primary: #6b86ff; --primary-dark: #8aa0ff; --ok: #4ade80; --bad: #f87171; --border: #2e323d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .screen { display: none; max-width: 640px; margin: 0 auto; padding: 24px 16px 40px; }
+  .screen.active { display: block; }
+  h1 { font-size: 26px; margin: 8px 0 20px; }
+  h2 { font-size: 20px; margin: 0 0 12px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  input[type=text], input[type=number] { width: 100%; padding: 12px 14px; font-size: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); }
+  button { font-size: 15px; padding: 10px 16px; border: none; border-radius: 10px; background: var(--primary); color: #fff; cursor: pointer; font-weight: 600; }
+  button:hover { background: var(--primary-dark); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .grow { flex: 1; }
+  .spread { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .error { color: var(--bad); font-size: 14px; min-height: 20px; margin-top: 8px; }
+  .room-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .room-item:last-child { border-bottom: none; }
+  .count { font-variant-numeric: tabular-nums; color: var(--muted); margin-right: 8px; font-size: 14px; }
+  .tag { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--border); color: var(--muted); margin-left: 6px; }
+  .player { padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .player:last-child { border-bottom: none; }
+  .crown { margin-right: 4px; }
+
+  /* 랭킹 (우측 상단 고정) */
+  #ranking { position: fixed; top: 12px; right: 12px; width: 190px; max-height: 60vh; overflow-y: auto; background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; box-shadow: 0 4px 16px rgba(0,0,0,.08); display: none; z-index: 10; }
+  #ranking.show { display: block; }
+  #ranking h3 { margin: 0 0 8px; font-size: 14px; }
+  #ranking ol { margin: 0; padding: 0; list-style: none; }
+  #ranking li { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; gap: 8px; }
+  #ranking li .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #ranking li.me { font-weight: 700; color: var(--primary); }
+
+  /* 게임 */
+  .progress { font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+  .question { font-size: 28px; font-weight: 700; text-align: center; margin: 26px 0; line-height: 1.4; word-break: keep-all; }
+  .banner { text-align: center; min-height: 28px; font-weight: 600; margin-top: 14px; }
+  .banner.ok { color: var(--ok); }
+  .banner.bad { color: var(--bad); }
+  .vs { text-align: center; font-size: 15px; color: var(--muted); margin-bottom: 4px; }
+
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 20; padding: 16px; }
+  .overlay.show { display: flex; }
+  .overlay .box { background: var(--card); border-radius: 16px; padding: 24px; width: 100%; max-width: 380px; }
+  .overlay ol { padding-left: 22px; margin: 12px 0 18px; }
+  .overlay li { padding: 4px 0; }
+</style>
+</head>
+<body>
+
+<!-- 1. 닉네임 -->
+<div id="s-nick" class="screen active">
+  <h1>➗ 수학 대결</h1>
+  <div class="card">
+    <h2>닉네임을 입력하세요</h2>
+    <input id="nick" type="text" maxlength="12" placeholder="닉네임 (최대 12자)" autocomplete="off">
+    <div id="nickErr" class="error"></div>
+    <button id="nickBtn" style="width:100%;margin-top:6px">들어가기</button>
+  </div>
+</div>
+
+<!-- 2. 로비 -->
+<div id="s-lobby" class="screen">
+  <div class="spread" style="margin-bottom:16px">
+    <h1 style="margin:0">방 목록</h1>
+    <button id="createBtn">방 만들기</button>
+  </div>
+  <div id="createBox" class="card" style="display:none">
+    <h2>최대 인원 설정</h2>
+    <div class="row">
+      <input id="maxInput" type="number" min="2" max="40" value="10" class="grow">
+      <span class="muted">명 (2~40)</span>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="createOk" class="grow">만들기</button>
+      <button id="createCancel" class="ghost">취소</button>
+    </div>
+  </div>
+  <div id="lobbyErr" class="error"></div>
+  <div class="card" id="roomListBox"></div>
+</div>
+
+<!-- 3. 대기방 -->
+<div id="s-room" class="screen">
+  <h1 id="roomTitle"></h1>
+  <div class="card">
+    <div class="spread" style="margin-bottom:8px">
+      <h2 style="margin:0">참가자</h2>
+      <span id="roomCount" class="muted"></span>
+    </div>
+    <div id="playerList"></div>
+  </div>
+  <div id="roomErr" class="error"></div>
+  <div class="row">
+    <button id="startBtn" class="grow" style="display:none">게임 시작</button>
+    <button id="leaveBtn" class="ghost">나가기</button>
+  </div>
+  <p id="waitMsg" class="muted" style="text-align:center;margin-top:14px"></p>
+</div>
+
+<!-- 4. 게임 -->
+<div id="s-game" class="screen">
+  <div class="vs" id="vsText"></div>
+  <div class="card">
+    <div class="progress" id="progress"></div>
+    <div class="question" id="qText">잠시 후 시작해요…</div>
+    <div class="row">
+      <input id="ans" type="text" inputmode="decimal" placeholder="정답 입력 후 Enter" autocomplete="off" class="grow" disabled>
+      <button id="ansBtn" disabled>제출</button>
+    </div>
+    <div class="banner" id="banner"></div>
+  </div>
+</div>
+
+<!-- 우측 상단 랭킹 -->
+<div id="ranking">
+  <h3>🏆 랭킹</h3>
+  <ol id="rankList"></ol>
+</div>
+
+<!-- 대결 종료 / 게임 종료 -->
+<div id="matchOverlay" class="overlay">
+  <div class="box">
+    <h2 id="ovTitle"></h2>
+    <ol id="ovList"></ol>
+    <p id="ovNote" class="muted"></p>
+    <button id="ovBtn" style="width:100%;display:none">대기방으로 돌아가기</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+let myName = '';
+let room = null;
+
+const $ = id => document.getElementById(id);
+function show(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $('s-' + name).classList.add('active');
+  $('ranking').classList.toggle('show', name === 'room' || name === 'game');
+  if (name !== 'game') $('matchOverlay').classList.remove('show');
+}
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+function mk(tag, text, cls) {
+  const e = document.createElement(tag);
+  if (text !== undefined) e.textContent = text;
+  if (cls) e.className = cls;
+  return e;
+}
+
+// ---------- 닉네임 ----------
+function submitNick() {
+  socket.emit('setNick', $('nick').value, res => {
+    if (!res.ok) { $('nickErr').textContent = res.error; return; }
+    myName = res.name;
+    show('lobby');
+  });
+}
+$('nickBtn').onclick = submitNick;
+$('nick').addEventListener('keydown', e => { if (e.key === 'Enter') submitNick(); });
+
+// ---------- 로비 ----------
+$('createBtn').onclick = () => { $('createBox').style.display = 'block'; $('maxInput').focus(); };
+$('createCancel').onclick = () => { $('createBox').style.display = 'none'; };
+$('createOk').onclick = () => {
+  socket.emit('createRoom', $('maxInput').value, res => {
+    if (!res.ok) { $('lobbyErr').textContent = res.error; return; }
+    $('lobbyErr').textContent = '';
+    $('createBox').style.display = 'none';
+  });
+};
+
+socket.on('rooms', list => {
+  const box = $('roomListBox');
+  clear(box);
+  if (!list.length) {
+    box.appendChild(mk('div', '아직 방이 없어요. 방 만들기를 눌러보세요!', 'muted'));
+    return;
+  }
+  list.forEach(r => {
+    const item = mk('div', undefined, 'room-item');
+    const left = mk('div');
+    left.appendChild(mk('span', r.title));
+    if (r.state === 'playing') left.appendChild(mk('span', '게임 중', 'tag'));
+    const right = mk('div', undefined, 'row');
+    right.appendChild(mk('span', `${r.count}/${r.max}명`, 'count'));
+    const btn = mk('button', '참여하기');
+    btn.disabled = r.state !== 'waiting' || r.count >= r.max;
+    btn.onclick = () => {
+      socket.emit('joinRoom', r.id, res => {
+        $('lobbyErr').textContent = res.ok ? '' : res.error;
+      });
+    };
+    right.appendChild(btn);
+    item.append(left, right);
+    box.appendChild(item);
+  });
+});
+
+// ---------- 대기방 ----------
+socket.on('roomState', st => {
+  room = st;
+  const active = document.querySelector('.screen.active').id;
+  if (active === 's-lobby') show('room');
+
+  $('roomTitle').textContent = st.title;
+  $('roomCount').textContent = `${st.players.length}/${st.max}명`;
+
+  const list = $('playerList');
+  clear(list);
+  st.players.forEach(p => {
+    const row = mk('div', undefined, 'player');
+    if (p.id === st.hostId) row.appendChild(mk('span', '👑', 'crown'));
+    row.appendChild(mk('span', p.name + (p.id === socket.id ? ' (나)' : '')));
+    list.appendChild(row);
+  });
+
+  const isHost = st.hostId === socket.id;
+  $('startBtn').style.display = isHost ? 'block' : 'none';
+  $('startBtn').disabled = st.state !== 'waiting' || st.players.length < 2;
+  $('waitMsg').textContent = st.state === 'playing'
+    ? '게임 진행 중…'
+    : (isHost ? (st.players.length < 2 ? '최소 2명이 모이면 시작할 수 있어요.' : '준비되면 게임 시작을 눌러주세요.') : '방장이 시작하길 기다리는 중…');
+
+  renderRanking(st.players);
+});
+
+$('startBtn').onclick = () => {
+  socket.emit('startGame', res => { $('roomErr').textContent = res.ok ? '' : res.error; });
+};
+$('leaveBtn').onclick = () => {
+  socket.emit('leaveRoom');
+  room = null;
+  show('lobby');
+};
+
+function renderRanking(players) {
+  const ol = $('rankList');
+  clear(ol);
+  [...players].sort((a, b) => b.score - a.score).forEach((p, i) => {
+    const li = mk('li', undefined, p.id === socket.id ? 'me' : '');
+    li.appendChild(mk('span', `${i + 1}. ${p.name}`, 'nm'));
+    li.appendChild(mk('span', `${p.score}점`));
+    ol.appendChild(li);
+  });
+}
+
+// ---------- 게임 ----------
+let canAnswer = false;
+function setAnswerEnabled(on) {
+  canAnswer = on;
+  $('ans').disabled = !on;
+  $('ansBtn').disabled = !on;
+  if (on) { $('ans').value = ''; $('ans').focus(); }
+}
+function banner(text, cls) {
+  const b = $('banner');
+  b.textContent = text;
+  b.className = 'banner' + (cls ? ' ' + cls : '');
+}
+
+socket.on('matchStart', ({ opponents, total }) => {
+  show('game');
+  $('vsText').textContent = '상대: ' + opponents.join(', ');
+  $('progress').textContent = `총 ${total}문제`;
+  $('qText').textContent = '잠시 후 시작해요…';
+  banner('');
+  setAnswerEnabled(false);
+});
+
+socket.on('question', ({ text, index, total }) => {
+  $('progress').textContent = `문제 ${index} / ${total}`;
+  $('qText').textContent = text;
+  banner('');
+  setAnswerEnabled(true);
+});
+
+socket.on('wrongAnswer', () => {
+  banner('틀렸어요! 다시 시도해보세요', 'bad');
+  $('ans').select();
+});
+
+socket.on('questionResult', ({ winner, winnerId, answer }) => {
+  setAnswerEnabled(false);
+  if (winner === null) banner(`시간 초과! 정답: ${answer}`, 'bad');
+  else if (winnerId === socket.id) banner(`🎉 내가 먼저 맞혔어요! (정답: ${answer})`, 'ok');
+  else banner(`${winner}님이 먼저 맞혔어요 (정답: ${answer})`, 'bad');
+});
+
+function submitAnswer() {
+  if (!canAnswer) return;
+  const v = $('ans').value.trim();
+  if (!v) return;
+  socket.emit('answer', v);
+}
+$('ansBtn').onclick = submitAnswer;
+$('ans').addEventListener('keydown', e => { if (e.key === 'Enter') submitAnswer(); });
+
+// ---------- 종료 ----------
+function showOverlay(title, items, note, withButton) {
+  $('ovTitle').textContent = title;
+  const ol = $('ovList');
+  clear(ol);
+  items.forEach(it => ol.appendChild(mk('li', `${it.name} — ${it.score}점`)));
+  $('ovNote').textContent = note;
+  $('ovBtn').style.display = withButton ? 'block' : 'none';
+  $('matchOverlay').classList.add('show');
+}
+
+socket.on('matchEnd', ({ scores }) => {
+  setAnswerEnabled(false);
+  showOverlay('내 대결 종료!', scores, '다른 대결이 끝나길 기다리는 중…', false);
+});
+
+socket.on('gameEnd', ({ ranking }) => {
+  showOverlay('🏆 최종 랭킹', ranking, '', true);
+});
+
+$('ovBtn').onclick = () => {
+  $('matchOverlay').classList.remove('show');
+  show('room');
+};
+
+socket.on('disconnect', () => {
+  alert('서버와 연결이 끊어졌어요. 새로고침 해주세요.');
+});
+</script>
+</body>
+</html>
